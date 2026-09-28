@@ -1,0 +1,19 @@
+example.com {
+    encode zstd gzip
+
+    header {
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    handle {
+        root * /srv/project2/frontend/dist
+        try_files {path} /index.html
+        file_server
+    }
+}

@@ -1,0 +1,16 @@
+package com.project2.backend.lobby;
+
+public enum LobbyError {
+    INVALID_DISPLAY_NAME,
+    INVALID_MAX_PLAYERS,
+    INVALID_CODE,
+    LOBBY_NOT_FOUND,
+    LOBBY_EXPIRED,
+    LOBBY_FULL,
+    DISPLAY_NAME_TAKEN,
+    NOT_MEMBER,
+    NOT_HOST,
+    GAME_NOT_AVAILABLE,
+    GAME_IN_PROGRESS,
+    NOT_ENOUGH_PLAYERS
+}

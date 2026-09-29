@@ -58,7 +58,7 @@ public final class LobbyService {
 
     public LobbySnapshot create(UUID guestId, String rawName, Integer requestedMaxPlayers) {
         String name = validName(rawName);
-        int maxPlayers = requestedMaxPlayers == null ? 4 : requestedMaxPlayers;
+        int maxPlayers = requestedMaxPlayers == null ? 8 : requestedMaxPlayers;
         if (maxPlayers < 2 || maxPlayers > 8) {
             throw new LobbyException(LobbyError.INVALID_MAX_PLAYERS, "Lobby capacity must be between 2 and 8");
         }

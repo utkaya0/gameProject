@@ -26,7 +26,7 @@ function LobbyScreen({ onBack, onHome }: { onBack: () => void; onHome: () => voi
   const [lobby, setLobby] = useState<LobbySnapshot | null>(null)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [maxPlayers, setMaxPlayers] = useState(4)
+  const [entryMode, setEntryMode] = useState<'create' | 'join'>('create')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [liveState, setLiveState] = useState<'connecting' | 'live' | 'reconnecting'>('connecting')
@@ -118,7 +118,7 @@ function LobbyScreen({ onBack, onHome }: { onBack: () => void; onHome: () => voi
 
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    void run(async () => setLobby(await createLobby(name.trim(), maxPlayers)))
+    void run(async () => setLobby(await createLobby(name.trim(), 8)))
   }
 
   const handleJoin = (event: FormEvent<HTMLFormElement>) => {
@@ -182,44 +182,40 @@ function LobbyScreen({ onBack, onHome }: { onBack: () => void; onHome: () => voi
     <div className="lobby-shell">
       <header className="lobby-header">
         <button className="lobby-brand" type="button" onClick={onHome} aria-label="Project ana sayfa">Project<span>.</span></button>
-        {!lobby && <button type="button" className="lobby-back" onClick={onBack}>← Color</button>}
       </header>
       <main className="lobby-main">
         {!lobby ? <>
-          <div className="lobby-intro">
-            <span className="lobby-eyebrow">ÇOK OYUNCULU</span>
-            <h1>Arkadaşlarınla<br /><em>aynı lobide buluş.</em></h1>
-            <p>Bir lobi kur veya arkadaşının gönderdiği kodla katıl.</p>
+          <div className="lobby-intro lobby-intro--entry">
+            <span className="lobby-eyebrow">COLOR</span>
+            <h1>Çok oyunculu</h1>
+            <p>Lobi oluştur veya kodla katıl.</p>
           </div>
-          <div className="lobby-forms">
-            <form className="lobby-panel" onSubmit={handleCreate}>
-              <span className="lobby-panel__number">01 / LOBİ KUR</span>
-              <h2>Yeni lobi</h2>
-              <label htmlFor="create-name">Takma adın</label>
-              <input id="create-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required placeholder="Örn. Oyuncu1" />
-              <label htmlFor="max-players">Oyuncu sınırı</label>
-              <select id="max-players" value={maxPlayers} onChange={(event) => setMaxPlayers(Number(event.target.value))}>
-                {[2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} oyuncu</option>)}
-              </select>
-              <button type="submit" disabled={busy || !name.trim()}>Lobi oluştur <span aria-hidden="true">↗</span></button>
-            </form>
-            <form className="lobby-panel" onSubmit={handleJoin}>
-              <span className="lobby-panel__number">02 / KODLA KATIL</span>
-              <h2>Mevcut lobi</h2>
-              <label htmlFor="join-name">Takma adın</label>
-              <input id="join-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required placeholder="Örn. Oyuncu2" />
-              <label htmlFor="lobby-code">Lobi kodu</label>
-              <input id="lobby-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={6} minLength={6} required placeholder="ABC123" autoCapitalize="characters" spellCheck={false} />
-              <button type="submit" disabled={busy || !name.trim() || code.length !== 6}>Lobiye katıl <span aria-hidden="true">↗</span></button>
+          <div className="lobby-forms lobby-forms--single">
+            <form className="lobby-panel lobby-panel--single" onSubmit={entryMode === 'create' ? handleCreate : handleJoin}>
+              <button className="panel-back" type="button" onClick={onBack}>← Color</button>
+              <div className="lobby-mode-switch" role="group" aria-label="Lobi işlemi">
+                <button type="button" aria-pressed={entryMode === 'create'} disabled={busy} onClick={() => { setEntryMode('create'); setMessage(null) }}>Yeni lobi</button>
+                <button type="button" aria-pressed={entryMode === 'join'} disabled={busy} onClick={() => { setEntryMode('join'); setMessage(null) }}>Kodla katıl</button>
+              </div>
+              <label htmlFor="player-name">Takma adın</label>
+              <input id="player-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={32} required placeholder="Örn. Oyuncu1" />
+              {entryMode === 'join' && <>
+                <label htmlFor="lobby-code">Lobi kodu</label>
+                <input id="lobby-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={6} minLength={6} required placeholder="ABC123" autoCapitalize="characters" spellCheck={false} />
+              </>}
+              <button className="lobby-panel__submit" type="submit" disabled={busy || !name.trim() || (entryMode === 'join' && code.length !== 6)}>
+                {entryMode === 'create' ? 'Lobi oluştur' : 'Lobiye katıl'} <span aria-hidden="true">↗</span>
+              </button>
             </form>
           </div>
         </> : <>
           <div className="lobby-intro">
-            <span className="lobby-eyebrow">LOBİ HAZIR</span>
-            <h1>Oyuncular<br /><em>bir araya geliyor.</em></h1>
-            <p>Kodu arkadaşlarınla paylaş. Katılan oyuncular listede otomatik görünecek.</p>
+            <span className="lobby-eyebrow">COLOR</span>
+            <h1>Lobi</h1>
+            <p>Kodu arkadaşlarınla paylaş.</p>
           </div>
           <section className="lobby-room" aria-label="Lobi bilgileri">
+            <button className="panel-back" type="button" onClick={handleLeave} disabled={busy} aria-label="Lobiden ayrıl ve Color'a dön">← Color</button>
             <div className="lobby-room__top">
               <div><span>LOBİ KODU</span><strong>{lobby.code}</strong></div>
               <button type="button" className="lobby-secondary" onClick={() => void handleCopy()}>Kodu kopyala</button>
@@ -247,7 +243,6 @@ function LobbyScreen({ onBack, onHome }: { onBack: () => void; onHome: () => voi
         </>}
         {message && <p className="lobby-notice" role="status">{message}</p>}
       </main>
-      <footer className="lobby-footer"><span>Project</span><span>COLOR · ÇOK OYUNCULU</span></footer>
     </div>
   )
 }

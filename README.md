@@ -71,11 +71,13 @@ Color ekranındaki **Çok oyunculu lobi** bağlantısından takma adla lobi olu�
 
 | İşlem | Yöntem ve yol | Gövde |
 | --- | --- | --- |
-| Lobi oluştur | `POST /lobbies` | `{"displayName":"Ada","maxPlayers":4}` |
+| Lobi oluştur | `POST /lobbies` | `{"displayName":"Ada"}` |
 | Kodla katıl | `POST /lobbies/{code}/join` | `{"displayName":"Bora"}` |
 | Üye listesini oku | `GET /lobbies/{code}` | — |
 | Lobiden ayrıl | `POST /lobbies/{code}/leave` | — |
 | Aynı lobide rövanş başlat | `POST /lobbies/{code}/rematch` | — |
+
+Arayüz oyuncu sınırı sormaz; yeni lobiler 8 kişilik açılır. API'de `maxPlayers` gönderilmezse varsayılan değer de 8'dir.
 
 Kod 6 karakterdir; lobi kapasitesi 2–8 oyuncudur. Adlar aynı lobide büyük/küçük harf duyarsız benzersizdir. Yalnız üyeler listeyi görebilir. Ev sahibi ayrılırsa sıradaki oyuncu ev sahibi olur. En az iki oyuncu katıldığında ev sahibi maçı başlatabilir. Aktif maç sırasında yeni katılım kapalıdır; ayrılan oyuncu kalanları bekletmez. Biten maça yeni oyuncu katılabilir; eski final sonucu yalnız o maça katılanlara gösterilir. Son üye ayrılınca lobi silinir; iki saatlik süresi dolan lobiler dakikada bir temizlenir. Anonim oturum, lobi ve maç şu anda bellektedir; backend yeniden başlarsa kaybolurlar.
 

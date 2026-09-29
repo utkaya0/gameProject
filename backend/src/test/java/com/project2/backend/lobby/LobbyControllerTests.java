@@ -23,6 +23,15 @@ class LobbyControllerTests {
     @Autowired private MockMvc mvc;
 
     @Test
+    void defaultsToEightPlayersWhenCapacityIsOmitted() throws Exception {
+        mvc.perform(post("/api/v1/lobbies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\":\"Ada\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.maxPlayers").value(8));
+    }
+
+    @Test
     void separateGuestsJoinAndHostPermissionIsEnforced() throws Exception {
         var created = mvc.perform(post("/api/v1/lobbies")
                         .contentType(MediaType.APPLICATION_JSON)

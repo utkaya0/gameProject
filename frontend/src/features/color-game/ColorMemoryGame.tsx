@@ -41,7 +41,6 @@ function ColorTile({ color, label, empty = false }: { color?: string; label: str
       <div className={`color-tile__swatch${empty ? ' color-tile__swatch--empty' : ''}`} style={color ? { backgroundColor: color } : undefined} />
       <div className="color-tile__caption">
         <span>{label}</span>
-        <strong>{color ?? '—'}</strong>
       </div>
     </div>
   )
@@ -51,12 +50,11 @@ function FinalResult({ round }: { round: RoundResult }) {
   const { targetColor, guessedColor } = round.gameData
   return (
     <li className="result-row">
-      <span className="result-row__number">{String(round.roundNumber).padStart(2, '0')}</span>
-      <div className="result-row__colors" aria-label={`Hedef ${targetColor}, tahmin ${guessedColor ?? 'yok'}`}>
-        <span className="result-dot" style={{ backgroundColor: targetColor }} title={`Hedef: ${targetColor}`} />
-        <span className={`result-dot${guessedColor ? '' : ' result-dot--empty'}`} style={guessedColor ? { backgroundColor: guessedColor } : undefined} title={guessedColor ? `Tahmin: ${guessedColor}` : 'Tahmin yapılmadı'} />
+      <span className="result-row__number">{round.roundNumber}</span>
+      <div className="result-row__colors" aria-label={guessedColor ? 'Hedef ve tahmin renkleri' : 'Hedef renk; tahmin yapılmadı'}>
+        <span className="result-dot" style={{ backgroundColor: targetColor }} title="Hedef renk" />
+        <span className={`result-dot${guessedColor ? '' : ' result-dot--empty'}`} style={guessedColor ? { backgroundColor: guessedColor } : undefined} title={guessedColor ? 'Tahmin edilen renk' : 'Tahmin yapılmadı'} />
       </div>
-      <span className="result-row__label">Raund {round.roundNumber}</span>
       <strong>{scoreText(round.score)} <small>/ 10</small></strong>
     </li>
   )
@@ -65,12 +63,12 @@ function FinalResult({ round }: { round: RoundResult }) {
 function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () => void }) {
   const [game, setGame] = useState<SingleGame | null>(null)
   const [selectedColor, setSelectedColor] = useState(INITIAL_COLOR)
-  const [colorText, setColorText] = useState(INITIAL_COLOR)
   const [restoring, setRestoring] = useState(() => !!readActiveGameId())
   const [restoreFailed, setRestoreFailed] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [serverOffsetMs, setServerOffsetMs] = useState(0)
   const [starting, setStarting] = useState(false)
+  const [countdownStep, setCountdownStep] = useState<'1' | '2' | 'GO' | null>(null)
   const [sending, setSending] = useState(false)
   const [continuing, setContinuing] = useState(false)
   const [submittedKey, setSubmittedKey] = useState<string | null>(null)
@@ -78,7 +76,7 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
   const inFlightKey = useRef<string | null>(null)
   const lastServerTime = useRef(0)
   const activeRoundKey = useRef<string | null>(null)
-  const hexInputRef = useRef<HTMLInputElement>(null)
+  const colorPickerRef = useRef<HTMLInputElement>(null)
   const continueButtonRef = useRef<HTMLButtonElement>(null)
   const replayButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -92,7 +90,6 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
       activeRoundKey.current = key
       const restoredColor = next.yourDraft && HEX_COLOR_PATTERN.test(next.yourDraft) ? next.yourDraft : INITIAL_COLOR
       setSelectedColor(restoredColor)
-      setColorText(restoredColor)
       setSubmittedKey(null)
       inFlightKey.current = null
       setMessage(null)
@@ -189,7 +186,7 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
 
   useEffect(() => {
     if (game?.status === 'FINISHED') replayButtonRef.current?.focus()
-    else if (game?.phase === 'INPUT') hexInputRef.current?.focus()
+    else if (game?.phase === 'INPUT') colorPickerRef.current?.focus()
     else if (game?.phase === 'REVEAL') continueButtonRef.current?.focus()
   }, [game?.phase, game?.currentRound, game?.status])
 
@@ -198,12 +195,11 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
     : 0
   const roundKey = game ? `${game.id}:${game.currentRound}` : null
   const inputOpen = game?.phase === 'INPUT' && remainingMs > 0
-  const validColorText = HEX_COLOR_PATTERN.test(colorText)
   const alreadySubmitted = submittedKey === roundKey
   const draftStatus = useColorDraft(game?.id, game?.currentRound, game?.phase,
-    selectedColor, validColorText, alreadySubmitted, saveSingleColorDraft)
+    selectedColor, true, alreadySubmitted, saveSingleColorDraft)
 
-  const startGame = async () => {
+  const startGame = useCallback(async () => {
     setStarting(true)
     setMessage(null)
     try {
@@ -216,10 +212,26 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
     } finally {
       setStarting(false)
     }
+  }, [applySnapshot])
+
+  useEffect(() => {
+    if (!countdownStep) return
+    const next = countdownStep === '1' ? '2' : countdownStep === '2' ? 'GO' : null
+    const timer = window.setTimeout(() => {
+      if (next) setCountdownStep(next)
+      else void startGame().finally(() => setCountdownStep(null))
+    }, countdownStep === 'GO' ? 650 : 850)
+    return () => window.clearTimeout(timer)
+  }, [countdownStep, startGame])
+
+  const beginCountdown = () => {
+    if (starting || restoring || countdownStep) return
+    setMessage(null)
+    setCountdownStep('1')
   }
 
   const submitGuess = useCallback(async () => {
-    if (!game || !inputOpen || !validColorText || !roundKey || inFlightKey.current === roundKey || alreadySubmitted) return
+    if (!game || !inputOpen || !roundKey || inFlightKey.current === roundKey || alreadySubmitted) return
     inFlightKey.current = roundKey
     setSending(true)
     setMessage(null)
@@ -233,7 +245,7 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
     } finally {
       setSending(false)
     }
-  }, [game, inputOpen, validColorText, roundKey, alreadySubmitted, selectedColor, applySnapshot])
+  }, [game, inputOpen, roundKey, alreadySubmitted, selectedColor, applySnapshot])
 
   const continueRound = async () => {
     if (!game || game.phase !== 'REVEAL' || continuing) return
@@ -264,65 +276,70 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
         </button>
         <nav className="game-nav" aria-label="Oyun menüsü">
           <button className="back-link" type="button" onClick={onLobby}>Lobi</button>
-          <button className="back-link" type="button" onClick={onBack}>← Oyunlar</button>
         </nav>
       </header>
 
-      {!game && (
-        <main className="landing">
-          <div className="landing__copy">
-            <span className="section-label"><span className="section-label__line" /> HAFIZANA GÜVENİYOR MUSUN?</span>
-            <h1>Bir rengi gör.<br /><em>Hafızanda tut.</em><br />Yeniden oluştur.</h1>
-            <p>Hedef rengi kısa süre incele. Kaybolduğunda, aklında kalan tonu seç. Beş raund sonunda renk hafızanı gör.</p>
-            <button className="button button--primary landing__button" type="button" onClick={() => void startGame()} disabled={starting || restoring}>
-              {restoring ? 'Oyun yükleniyor…' : starting ? 'Oyun hazırlanıyor…' : 'Oyuna başla'} <span aria-hidden="true">↗</span>
-            </button>
-            <button className="lobby-entry" type="button" onClick={onLobby} disabled={restoring}>Çok oyunculu lobi <span aria-hidden="true">↗</span></button>
-            {restoreFailed && <button className="retry-button" type="button" onClick={() => void restoreGame()} disabled={restoring}>Oyuna yeniden bağlan</button>}
-            <div className="landing__facts" aria-label="Oyun bilgileri">
-              <span><strong>05</strong> RAUND</span>
-              <span><strong>03</strong> SANİYE BAKIŞ</span>
-              <span><strong>50</strong> MAKS. PUAN</span>
+      {!game && !countdownStep && (
+        <main className="landing landing--centered">
+          <section className="landing__panel" aria-labelledby="color-title">
+            <button className="panel-back" type="button" onClick={onBack}>← Oyunlar</button>
+            <div className="landing__copy">
+              <span className="section-label">COLOR</span>
+              <h1 id="color-title">Rengi hatırla.</h1>
+              <p>Renge bak, kaybolunca hatırladığın tonu seç.</p>
+              <div className="landing__actions">
+                <button className="button landing__button" type="button" onClick={beginCountdown} disabled={starting || restoring || !!countdownStep}>
+                  {restoring ? 'Oyun yükleniyor…' : starting ? 'Oyun hazırlanıyor…' : 'Oyuna başla'} <span aria-hidden="true">→</span>
+                </button>
+                <button className="lobby-entry" type="button" onClick={onLobby} disabled={restoring || !!countdownStep}>Çok oyunculu <span aria-hidden="true">↗</span></button>
+              </div>
+              {restoreFailed && <button className="retry-button" type="button" onClick={() => void restoreGame()} disabled={restoring}>Oyuna yeniden bağlan</button>}
             </div>
-          </div>
-          <div className="landing__art" aria-hidden="true">
-            <div className="art-grid"><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
-            <div className="art-label">GÖR · HATIRLA · TAHMİN ET</div>
-          </div>
+            <div className="landing__art" aria-hidden="true">
+              <div className="memory-visual"><span /><span /><span /></div>
+            </div>
+          </section>
           {message && <p className="notice landing__notice" role="alert">{message}</p>}
         </main>
       )}
 
+      {countdownStep && !game && <main className="game-screen game-screen--single">
+        <button className="panel-back" type="button" onClick={onBack}>← Oyunlar</button>
+        <section className="play-panel" aria-label="Color oyunu">
+          <div className="play-panel__header">
+            <span className="section-label">COLOR</span>
+            <div className="play-panel__score"><span>TOPLAM PUAN</span><strong>0.00 <small>/ 50</small></strong></div>
+          </div>
+          <div className="play-panel__countdown" role="status" aria-live="assertive" aria-label={`Oyun başlıyor: ${countdownStep}`}>
+            <span>OYUN BAŞLIYOR</span>
+            <strong key={countdownStep}>{countdownStep}</strong>
+          </div>
+        </section>
+      </main>}
+
       {game && game.status === 'FINISHED' && (
         <main className="final-screen">
-          <span className="section-label"><span className="section-label__line" /> OYUN TAMAMLANDI</span>
-          <h1>Renkler aklında<br /><em>ne kadar kaldı?</em></h1>
           <div className="final-card">
+            <button className="panel-back" type="button" onClick={onBack}>← Oyunlar</button>
             <div className="final-card__summary">
-              <div>
-                <span className="small-label">TOPLAM PUANIN</span>
-                <div className="final-score">{scoreText(game.totalScore)} <small>/ {scoreText(game.totalRounds * 10)}</small></div>
-              </div>
-              <span className="final-card__mark" aria-hidden="true">✦</span>
+              <div className="final-score">{scoreText(game.totalScore)} <small>/ {scoreText(game.totalRounds * 10)}</small></div>
             </div>
             <ol className="results-list">
               {game.revealedRounds.map((round) => <FinalResult key={round.roundNumber} round={round} />)}
             </ol>
+            <button ref={replayButtonRef} className="button final-card__replay" type="button" onClick={() => void startGame()} disabled={starting}>
+              {starting ? 'Oyun hazırlanıyor…' : 'Yeniden oyna'} <span aria-hidden="true">↗</span>
+            </button>
           </div>
-          <button ref={replayButtonRef} className="button button--primary" type="button" onClick={() => void startGame()} disabled={starting}>
-            {starting ? 'Oyun hazırlanıyor…' : 'Yeniden oyna'} <span aria-hidden="true">↗</span>
-          </button>
           {message && <p className="notice" role="alert">{message}</p>}
         </main>
       )}
 
       {game && game.status === 'IN_PROGRESS' && (
-        <main className="game-screen">
+        <main className="game-screen game-screen--single">
+          <button className="panel-back" type="button" onClick={onBack}>← Oyunlar</button>
           <div className="game-heading">
-            <div>
-              <span className="section-label"><span className="section-label__line" /> RENK HAFIZA TESTİ</span>
-              <h1>Raund <em>{String(game.currentRound).padStart(2, '0')}</em><span className="game-heading__total"> / {String(game.totalRounds).padStart(2, '0')}</span></h1>
-            </div>
+            <div><span className="section-label">COLOR</span></div>
             <div className="score-pill"><span>TOPLAM PUAN</span><strong>{scoreText(game.totalScore)} <small>/ {game.totalRounds * 10}</small></strong></div>
           </div>
 
@@ -343,35 +360,28 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
                     : 'Hedef renk gizlendi. Tahmin ekranında rengini seçebilirsin.'}
           </p>
 
-          <div className="game-layout">
+          <div className={`game-layout game-layout--${previewVisible ? 'preview' : revealVisible ? 'reveal' : 'guess'}`}>
             <section className="stage-card">
               <div className="stage-card__top">
                 <span className="small-label">{previewVisible ? 'HEDEF RENK' : revealVisible ? 'RAUND SONUCU' : 'SENİN TAHMİNİN'}</span>
                 <span className="stage-card__round">{String(game.currentRound).padStart(2, '0')} / {String(game.totalRounds).padStart(2, '0')}</span>
               </div>
-
-              {previewVisible && (
-                <div className="stage-display stage-display--preview">
-                  <div className="hero-swatch" role="img" aria-label={`Hedef renk ${game.gameData!.targetColor}`} style={{ backgroundColor: game.gameData!.targetColor }} />
-                  <div className="stage-display__caption"><span>BU RENGİ AKLINDA TUT</span></div>
+              {previewVisible && <div className="stage-display stage-display--preview">
+                <div className="hero-swatch" role="img" aria-label="Hedef renk" style={{ backgroundColor: game.gameData!.targetColor }} />
+                <div className="stage-display__caption"><span>Rengi hatırla</span></div>
+              </div>}
+              {revealVisible && currentResult && <div className="stage-display stage-display--reveal">
+                <div className="reveal-grid">
+                  <ColorTile color={currentResult.gameData.targetColor} label="HEDEF" />
+                  <ColorTile color={currentResult.gameData.guessedColor} label="TAHMİNİN" empty={!currentResult.gameData.guessedColor} />
                 </div>
-              )}
-              {revealVisible && currentResult && (
-                <div className="stage-display stage-display--reveal">
-                  <div className="reveal-grid">
-                    <ColorTile color={currentResult.gameData.targetColor} label="HEDEF" />
-                    <ColorTile color={currentResult.gameData.guessedColor} label="TAHMİNİN" empty={!currentResult.gameData.guessedColor} />
-                  </div>
-                  <div className="reveal-score"><span>BU RAUNDUN PUANI</span><strong>{scoreText(currentResult.score)} <small>/ 10</small></strong></div>
-                </div>
-              )}
-              {pickerVisible && (
-                <div className="stage-display stage-display--hidden stage-display--guess">
-                  <div className="hidden-orb" style={{ backgroundColor: selectedColor }} aria-hidden="true" />
-                  <strong>{game.phase === 'INPUT' && !inputOpen ? 'Süre doldu' : 'Rengi tahmin et'}</strong>
-                  <p>{game.phase === 'INPUT' && !inputOpen ? 'Sonuç hazırlanıyor…' : 'Hedef artık görünmüyor. Aklındaki tonu seç.'}</p>
-                </div>
-              )}
+                <div className="reveal-score"><span>BU RAUNDUN PUANI</span><strong>{scoreText(currentResult.score)} <small>/ 10</small></strong></div>
+              </div>}
+              {pickerVisible && <div className="stage-display stage-display--hidden stage-display--guess">
+                <div className="hidden-orb" style={{ backgroundColor: selectedColor }} aria-hidden="true" />
+                <strong>{game.phase === 'INPUT' && !inputOpen ? 'Süre doldu' : 'Rengi tahmin et'}</strong>
+                <p>{game.phase === 'INPUT' && !inputOpen ? 'Sonuç hazırlanıyor…' : 'Hedef artık görünmüyor. Aklındaki tonu seç.'}</p>
+              </div>}
             </section>
 
             <aside className="control-card">
@@ -384,63 +394,39 @@ function ColorMemoryGame({ onBack, onLobby }: { onBack: () => void; onLobby: () 
               </div>}
               {pickerVisible && game.phase !== 'INPUT' && <div className="timer timer--waiting" aria-hidden="true"><strong>···</strong></div>}
               <div className="control-card__divider" />
-
-              {previewVisible && (
-                <div className="instruction">
-                  <span className="instruction__icon" aria-hidden="true">◎</span>
-                  <h2>Renge dikkatlice bak.</h2>
-                  <p>Birazdan bu rengi hafızandan yeniden seçeceksin.</p>
+              {previewVisible && <div className="instruction">
+                <span className="instruction__icon" aria-hidden="true">◎</span>
+                <h2>Renge bak.</h2>
+              </div>}
+              {pickerVisible && <div className="picker-panel picker-panel--guess">
+                <label htmlFor="color-picker">HAFIZANDAKİ RENGİ SEÇ</label>
+                <div className="picker-panel__input-wrap">
+                  <input ref={colorPickerRef} id="color-picker" type="color" value={selectedColor}
+                    onChange={event => setSelectedColor(event.target.value.toUpperCase())}
+                    disabled={alreadySubmitted || sending || (game.phase === 'INPUT' && !inputOpen)} aria-label="Renk seçici" />
                 </div>
-              )}
-
-              {pickerVisible && (
-                <div className="picker-panel picker-panel--guess">
-                  <label htmlFor="color-picker">HAFIZANDAKİ RENGİ SEÇ</label>
-                  <div className="picker-panel__input-wrap">
-                    <input id="color-picker" type="color" value={selectedColor} onChange={(event) => {
-                      const color = event.target.value.toUpperCase()
-                      setSelectedColor(color)
-                      setColorText(color)
-                    }} disabled={alreadySubmitted || sending || (game.phase === 'INPUT' && !inputOpen)} aria-label="Renk seçici" aria-describedby="picker-help" />
-                    <span>{selectedColor}</span>
-                  </div>
-                  <p id="picker-help">Renk kutusuna dokunarak tonunu ayarla.</p>
-                  <label className="picker-panel__hex-label" htmlFor="hex-color">HEX RENK KODU</label>
-                  <input ref={hexInputRef} id="hex-color" className="picker-panel__hex-input" type="text" inputMode="text" maxLength={7} spellCheck={false} autoCapitalize="characters" value={colorText} onChange={(event) => {
-                    const value = event.target.value.toUpperCase()
-                    setColorText(value)
-                    if (HEX_COLOR_PATTERN.test(value)) setSelectedColor(value)
-                  }} disabled={alreadySubmitted || sending || (game.phase === 'INPUT' && !inputOpen)} aria-invalid={!validColorText} aria-describedby="hex-help" />
-                  <p id="hex-help">Klavyeyle de renk seçebilirsin. Örnek: #4285D0</p>
-                  <button className="button button--primary picker-panel__submit" type="button" onClick={() => void submitGuess()} disabled={!inputOpen || !validColorText || alreadySubmitted || sending}>
-                    {alreadySubmitted ? 'Tahmin gönderildi' : sending ? 'Gönderiliyor…' : inputOpen ? 'Tahminimi gönder' : game.phase === 'INPUT' ? 'Süre doldu' : 'Tahmin açılıyor…'}
-                  </button>
-                  {game.phase !== 'INPUT' && <p className="picker-panel__auto">Rengini seçebilirsin; gönderme düğmesi hemen açılacak.</p>}
-                  {!alreadySubmitted && (game.phase === 'TRANSITION' || game.phase === 'INPUT') &&
-                    <p className="picker-panel__auto" role="status">{draftStatus === 'saved'
-                      ? 'Seçili renk kaydedildi. Süre dolarsa otomatik cevap olur.'
-                      : draftStatus === 'error' ? 'Renk kaydedilemedi; bağlantı düzelince yeniden denenecek.'
-                        : 'Seçili renk kaydediliyor…'}</p>}
-                </div>
-              )}
-
-              {game.phase === 'REVEAL' && (
-                <div className="instruction">
-                  <span className="instruction__icon instruction__icon--result" aria-hidden="true">✦</span>
-                  <h2>{currentResult?.gameData.guessedColor ? 'Renkler karşı karşıya.' : 'Bu raund kaçırıldı.'}</h2>
-                  <p>{currentResult?.gameData.guessedColor ? 'Hedef ile seçtiğin tonu karşılaştır. Hazır olduğunda devam et.' : 'Tahmin gönderilmediği için bu raund 0 puan. Hazır olduğunda devam et.'}</p>
-                  <button ref={continueButtonRef} className="button button--primary continue-button" type="button" onClick={() => void continueRound()} disabled={continuing}>
-                    {continuing ? 'Yükleniyor…' : 'Devam'} <span aria-hidden="true">↗</span>
-                  </button>
-                </div>
-              )}
+                <button className="button button--primary picker-panel__submit" type="button" onClick={() => void submitGuess()} disabled={!inputOpen || alreadySubmitted || sending}>
+                  {alreadySubmitted ? 'Tahmin gönderildi' : sending ? 'Gönderiliyor…' : inputOpen ? 'Tahminimi gönder' : game.phase === 'INPUT' ? 'Süre doldu' : 'Tahmin açılıyor…'}
+                </button>
+                {!alreadySubmitted && (game.phase === 'TRANSITION' || game.phase === 'INPUT') &&
+                  <p className="picker-panel__auto" role="status">{draftStatus === 'saved'
+                    ? 'Seçili renk kaydedildi. Süre dolarsa otomatik cevap olur.'
+                    : draftStatus === 'error' ? 'Renk kaydedilemedi; bağlantı düzelince yeniden denenecek.'
+                      : 'Seçili renk kaydediliyor…'}</p>}
+              </div>}
+              {game.phase === 'REVEAL' && <div className="instruction">
+                <span className="instruction__icon instruction__icon--result" aria-hidden="true">✦</span>
+                <h2>{currentResult?.gameData.guessedColor ? 'Raund sonucu' : 'Bu raund kaçırıldı'}</h2>
+                <button ref={continueButtonRef} className="button button--primary continue-button" type="button" onClick={() => void continueRound()} disabled={continuing}>
+                  {continuing ? 'Yükleniyor…' : 'Devam'} <span aria-hidden="true">↗</span>
+                </button>
+              </div>}
             </aside>
           </div>
           {message && <p className="notice" role="alert">{message}</p>}
         </main>
       )}
 
-      <footer className="site-footer"><span>Project</span><span>COLOR · GÖR · HATIRLA · TAHMİN ET</span></footer>
     </div>
   )
 }

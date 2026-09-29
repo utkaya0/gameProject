@@ -3,7 +3,6 @@ import ColorMemoryGame from './features/color-game/ColorMemoryGame'
 import LobbyScreen from './features/lobby/LobbyScreen'
 import { clearActiveGameId } from './features/single-game/activeGame'
 import { leaveLobby } from './features/lobby/api'
-import './Home.css'
 
 type Page = 'home' | 'color' | 'lobby'
 type AppPath = '/' | '/color' | '/color/lobby'
@@ -24,9 +23,7 @@ function abandonGamesForHome(): void {
   } catch {
     // Navigation still works when browser storage is unavailable.
   }
-  if (lobbyCode) {
-    void leaveLobby(lobbyCode).catch(() => {})
-  }
+  if (lobbyCode) void leaveLobby(lobbyCode).catch(() => {})
 }
 
 function App() {
@@ -56,37 +53,21 @@ function App() {
     <div className="home-shell">
       <header className="home-header">
         <button className="home-logo" type="button" onClick={() => navigate('/')} aria-label="Project ana sayfa">Project<span>.</span></button>
-        <span className="home-header__label">MİNİ OYUNLAR</span>
+        <span className="home-header__label">Oyunlar</span>
       </header>
       <main className="home-main">
         <div className="home-intro">
-          <span className="home-eyebrow">OYUNLARI KEŞFET</span>
-          <h1>Küçük oyunlar.<br /><em>Büyük eğlence.</em></h1>
-          <p>Bir oyun seç ve hemen başla.</p>
+          <h1>Oyunlar</h1>
+          <p>Oynamak için bir oyun seç.</p>
         </div>
-        <section className="games-section" aria-labelledby="games-heading">
-          <div className="games-section__heading">
-            <h2 id="games-heading">Oyunlar</h2>
-            <span>01 / 03 AKTİF</span>
-          </div>
-          <div className="games-grid">
-            <button className="game-card game-card--color" type="button" onClick={() => navigate('/color')}>
-              <span className="game-card__preview game-card__preview--color" aria-hidden="true"><i /><i /><i /><i /></span>
-              <span className="game-card__content"><span className="game-card__tag">OYNA</span><strong>Color</strong><span>Rengi hatırla, tonunu tahmin et.</span></span>
-              <span className="game-card__arrow" aria-hidden="true">↗</span>
-            </button>
-            <div className="game-card game-card--placeholder" aria-label="Game1, yakında">
-              <span className="game-card__preview game-card__preview--empty" aria-hidden="true">01</span>
-              <span className="game-card__content"><span className="game-card__tag">YAKINDA</span><strong>Game1</strong></span>
-            </div>
-            <div className="game-card game-card--placeholder" aria-label="Game2, yakında">
-              <span className="game-card__preview game-card__preview--empty" aria-hidden="true">02</span>
-              <span className="game-card__content"><span className="game-card__tag">YAKINDA</span><strong>Game2</strong></span>
-            </div>
-          </div>
+        <section className="games-section" aria-label="Oyunlar">
+          <button className="game-card game-card--color" type="button" onClick={() => navigate('/color')}>
+            <span className="game-card__preview game-card__preview--color" aria-hidden="true"><i /><i /><i /><i /></span>
+            <span className="game-card__content"><strong>Color</strong><span>Renk hafızası oyunu · Tek veya çok oyunculu</span></span>
+            <span className="game-card__arrow" aria-hidden="true">↗</span>
+          </button>
         </section>
       </main>
-      <footer className="home-footer"><span>Project</span><span>OYNA · KEŞFET · TEKRARLA</span></footer>
     </div>
   )
 }

@@ -12,7 +12,6 @@ export default function MultiplayerGameScreen({ code, name, initial, onHome, onL
   onRematch: () => void; canRematch: boolean; leaving: boolean
 }) {
   const [game, setGame] = useState<MultiplayerGame | null>(initial)
-  const [color, setColor] = useState('#808080')
   const [previewColor, setPreviewColor] = useState('#808080')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -26,7 +25,6 @@ export default function MultiplayerGameScreen({ code, name, initial, onHome, onL
     if (activeRound.current === key) return
     activeRound.current = key
     const restoredColor = game.yourDraft && validColor.test(game.yourDraft) ? game.yourDraft : '#808080'
-    setColor(restoredColor)
     setPreviewColor(restoredColor)
   }, [game?.id, game?.currentRound, game?.yourDraft])
 
@@ -69,15 +67,13 @@ export default function MultiplayerGameScreen({ code, name, initial, onHome, onL
   return <div className="multi-shell">
     <header className="multi-header">
       <button className="multi-brand" type="button" onClick={onHome} aria-label="Project ana sayfa">Project<span>.</span></button>
-      <div className="multi-header__actions"><span>LOBİ {code}</span>
-        {game?.status !== 'FINISHED' && <button className="multi-leave" type="button" onClick={onLeave} disabled={leaving}>Lobiden ayrıl</button>}
-      </div>
+      <div className="multi-header__actions"><span>LOBİ {code}</span></div>
     </header>
     <main className="multi-main">
       {!game ? <p role="status">Maç yükleniyor…</p> : <>
-        <div className="multi-heading"><span>ÇOK OYUNCULU RENK HAFIZASI</span><h1>{game.status === 'FINISHED' ? 'Final sıralaması' : `Raund ${game.currentRound} / ${game.totalRounds}`}</h1></div>
-        {game.status === 'FINISHED' ? <section className="multi-card">
-          <h2>Beş raund tamamlandı</h2>
+        <div className="multi-heading"><span>COLOR · ÇOK OYUNCULU</span><h1>{game.status === 'FINISHED' ? 'Final sıralaması' : `Raund ${game.currentRound} / ${game.totalRounds}`}</h1></div>
+        {game.status === 'FINISHED' ? <section className="multi-card multi-card--with-back">
+          <button className="panel-back" type="button" onClick={onReturnToLobby}>← Lobi</button>
           <ol className="multi-ranking">{[...game.players].sort((a, b) => b.totalScore - a.totalScore || a.displayName.localeCompare(b.displayName)).map(player =>
             <li key={player.displayName}><strong>{player.displayName}</strong><span>{score(player.totalScore)} / {game.totalRounds * 10}</span></li>)}</ol>
           <div className="multi-final-actions">
@@ -86,17 +82,16 @@ export default function MultiplayerGameScreen({ code, name, initial, onHome, onL
             <button type="button" onClick={onLeave} disabled={leaving}>Lobiden ayrıl</button>
           </div>
         </section> : <div className="multi-grid">
-          <section className="multi-card multi-stage">
+          <section className="multi-card multi-stage multi-card--with-back">
+            <button className="panel-back" type="button" onClick={onLeave} disabled={leaving}>← Lobiden ayrıl</button>
             <span className="multi-label">{game.phase === 'PREVIEW' ? 'HEDEF RENK' : game.phase === 'REVEAL' ? 'RAUND SONUCU' : 'SENİN TAHMİNİN'}</span>
             {game.phase === 'PREVIEW' && game.gameData?.targetColor && <div className="multi-swatch" style={{ background: game.gameData.targetColor }} aria-label="Hedef renk" />}
             {(game.phase === 'TRANSITION' || game.phase === 'INPUT') && <div className="multi-guess-preview">
-              <div className="multi-guess-preview__color" style={{ backgroundColor: previewColor }} role="img" aria-label={`Seçtiğin renk ${previewColor}`} />
-              <strong>{previewColor}</strong>
+              <div className="multi-guess-preview__color" style={{ backgroundColor: previewColor }} role="img" aria-label="Seçtiğin renk" />
               <p>Hedef renk gizlendi. Aklındaki tonu seç.</p>
             </div>}
             {game.phase === 'REVEAL' && <div className="multi-result">
               <div className="multi-swatch" style={{ background: game.gameData?.targetColor }} aria-label="Hedef renk" />
-              <p>Hedef renk: {game.gameData?.targetColor}</p>
               <h2>Bu raundun puanları</h2>
               <ul>{currentResult?.scores.map(row => <li key={row.displayName}><span>{row.displayName}</span><strong>{score(row.score)} / 10</strong></li>)}</ul>
             </div>}
@@ -107,10 +102,8 @@ export default function MultiplayerGameScreen({ code, name, initial, onHome, onL
             {game.phase === 'PREVIEW' && <p>Rengi dikkatle incele. Birazdan gizlenecek.</p>}
             {(game.phase === 'TRANSITION' || game.phase === 'INPUT') && <>
               <label htmlFor="multi-color">Renk seç</label>
-              <input id="multi-color" type="color" value={previewColor} onChange={event => { const next = event.target.value.toUpperCase(); setColor(next); setPreviewColor(next) }} disabled={game.yourSubmissionReceived} />
-              <label htmlFor="multi-hex">HEX renk kodu</label>
-              <input id="multi-hex" type="text" maxLength={7} value={color} onChange={event => { const next = event.target.value.toUpperCase(); setColor(next); if (validColor.test(next)) setPreviewColor(next) }} disabled={game.yourSubmissionReceived} />
-              <button type="button" disabled={busy || game.phase !== 'INPUT' || remaining <= 0 || game.yourSubmissionReceived || !validColor.test(color)} onClick={() => void action(() => submitLobbyGuess(code, game.currentRound, color))}>
+              <input id="multi-color" type="color" value={previewColor} onChange={event => setPreviewColor(event.target.value.toUpperCase())} disabled={game.yourSubmissionReceived} />
+              <button type="button" disabled={busy || game.phase !== 'INPUT' || remaining <= 0 || game.yourSubmissionReceived} onClick={() => void action(() => submitLobbyGuess(code, game.currentRound, previewColor))}>
                 {game.yourSubmissionReceived ? 'Tahmin gönderildi' : 'Tahminimi gönder'}
               </button>
               {!game.yourSubmissionReceived && <p role="status">{draftStatus === 'saved'
